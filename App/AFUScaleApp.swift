@@ -8,13 +8,7 @@ struct AFUScaleApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(scale)
-                .onAppear {
-                    // 已选快捷指令写入就不再骚扰健康授权。
-                    if !scale.usesShortcut {
-                        scale.requestHealthAuthorization()
-                    }
-                }
-                .onOpenURL { scale.handleCallback($0) }
+                .onAppear { scale.requestHealthAuthorization() }
         }
     }
 }

@@ -2,12 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var scale: ScaleController
-    @FocusState private var focusedField: ProfileField?
     @State private var showsRawData = false
-
-    private enum ProfileField {
-        case height, age
-    }
 
     private enum Palette {
         static let blue = Color(red: 0, green: 0.4, blue: 0.8)
@@ -32,15 +27,6 @@ struct ContentView: View {
             }
             .background(Palette.parchment)
             .foregroundStyle(Palette.ink)
-            .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("完成") { focusedField = nil }
-                        .foregroundStyle(Palette.blue)
-                        .fontWeight(.semibold)
-                }
-            }
         }
         .tint(Palette.blue)
     }
@@ -112,53 +98,9 @@ struct ContentView: View {
                 Text("个人参数")
                     .font(.system(size: 21, weight: .semibold))
                     .tracking(-0.23)
-                Text("用于计算 BMI 与体脂率，修改后会自动保存。")
+                Text("身高 \(Int(scale.heightCm)) cm，用于计算 BMI。")
                     .font(.system(size: 14))
                     .foregroundStyle(Palette.muted)
-            }
-
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("身高")
-                        .font(.system(size: 14, weight: .semibold))
-                    HStack(spacing: 4) {
-                        TextField("170", value: $scale.heightCm, format: .number.precision(.fractionLength(0...1)))
-                            .keyboardType(.decimalPad)
-                            .font(.system(size: 21, weight: .semibold))
-                            .multilineTextAlignment(.trailing)
-                            .focused($focusedField, equals: .height)
-                            .accessibilityLabel("身高")
-                        Text("cm")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Palette.muted)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(height: 52)
-                    .background(.white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(focusedField == .height ? Palette.blue : Palette.hairline, lineWidth: focusedField == .height ? 2 : 1))
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("年龄")
-                        .font(.system(size: 14, weight: .semibold))
-                    HStack(spacing: 4) {
-                        TextField("25", value: $scale.age, format: .number)
-                            .keyboardType(.numberPad)
-                            .font(.system(size: 21, weight: .semibold))
-                            .multilineTextAlignment(.trailing)
-                            .focused($focusedField, equals: .age)
-                            .accessibilityLabel("年龄")
-                        Text("岁")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Palette.muted)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(height: 52)
-                    .background(.white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(focusedField == .age ? Palette.blue : Palette.hairline, lineWidth: focusedField == .age ? 2 : 1))
-                }
             }
 
             HStack(spacing: 12) {
@@ -176,56 +118,9 @@ struct ContentView: View {
         .background(Palette.parchment)
     }
 
-    /// 写入方式：Apple 健康（需授权）或快捷指令兑底（免费签名无 HealthKit 权限时）。
     @ViewBuilder
     private var writeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("写入方式")
-                .font(.system(size: 14, weight: .semibold))
-
-            Picker("写入方式", selection: $scale.writeTarget) {
-                Text("Apple 健康").tag(ScaleController.WriteTarget.health)
-                Text("快捷指令").tag(ScaleController.WriteTarget.shortcut)
-            }
-            .pickerStyle(.segmented)
-            .disabled(scale.healthUnavailable)
-
-            if scale.healthUnavailable {
-                HStack(spacing: 8) {
-                    Text("当前签名不包含 HealthKit 权限，只能用快捷指令写入。")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.muted)
-                    Button("重新检测") { scale.retryHealth() }
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.blue)
-                }
-            }
-        }
-
-        if scale.usesShortcut {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("测量结果交由名为「\(ScaleController.shortcutName)」的快捷指令写入 Apple 健康。")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Palette.muted)
-
-                if let url = scale.shortcutURL {
-                    Link(destination: url) {
-                        Text("通过快捷指令写入")
-                            .font(.system(size: 17))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                    }
-                    .foregroundStyle(.white)
-                    .background(Palette.blue)
-                    .clipShape(Capsule())
-                    .accessibilityHint("在快捷指令 App 中写入本次测量结果")
-                } else {
-                    Text("先完成一次测量，这里会出现写入按钮。")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Palette.muted)
-                }
-            }
-        } else if scale.needsHealthAuthorization {
+        if scale.needsHealthAuthorization {
             Button {
                 scale.requestHealthAuthorization()
             } label: {
@@ -244,7 +139,7 @@ struct ContentView: View {
 
     private var history: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("写入记录")
+            Text("最近 5 条写入")
                 .font(.system(size: 21, weight: .semibold))
                 .tracking(-0.23)
                 .padding(.bottom, 16)
@@ -312,6 +207,30 @@ struct ContentView: View {
 
     @ViewBuilder
     private var diagnostics: some View {
+        if !scale.advertisementReport.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("秤广播诊断")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(scale.advertisementReport)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Palette.muted)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !scale.eventLog.isEmpty {
+                    Text("蓝牙事件（最近 30 条）")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(.top, 8)
+                    Text(scale.eventLog.joined(separator: "\n"))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Palette.muted)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(24)
+            .background(.white)
+        }
         if !scale.latestRawHex.isEmpty {
             DisclosureGroup("原始测量数据", isExpanded: $showsRawData) {
                 Text(scale.latestRawHex)

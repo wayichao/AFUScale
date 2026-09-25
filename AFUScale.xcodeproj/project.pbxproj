@@ -11,6 +11,7 @@
 		37583E910467DE32177E2AF5 /* HealthWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E34D3AFE6BE662248D8E9C /* HealthWriter.swift */; };
 		5EDF364EC77E4CCBA7103C62 /* ScalePacketParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707E1880157881C7C581B400 /* ScalePacketParserTests.swift */; };
 		70B2C206EA9A95AB5F1DDD27 /* ScaleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A0C44EF1AB09AEB55E6EBE /* ScaleController.swift */; };
+		713ED1956B07E5EBE9FFB5DF /* MeasurementLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9178ECA229D648D90CB3E399 /* MeasurementLog.swift */; };
 		A49BA3462F76D391F3D1BF05 /* BodyMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B6E4CA7612470A5FC2A688 /* BodyMetrics.swift */; };
 		ACF9830501DB7642AB8BCA3B /* ScalePacketParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1FC11077ACEB2FF03273C3 /* ScalePacketParser.swift */; };
 		CDC67DCC6985214E71BED13E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF9DB245031D79CBE794BF36 /* Assets.xcassets */; };
@@ -38,6 +39,7 @@
 		64A0C44EF1AB09AEB55E6EBE /* ScaleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleController.swift; sourceTree = "<group>"; };
 		707E1880157881C7C581B400 /* ScalePacketParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScalePacketParserTests.swift; sourceTree = "<group>"; };
 		842BE90BEBDD37D916DAF62C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		9178ECA229D648D90CB3E399 /* MeasurementLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementLog.swift; sourceTree = "<group>"; };
 		A086C77A51AD8966591899EF /* AFUScaleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AFUScaleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF9DB245031D79CBE794BF36 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CA821F6BB3B64650D0AA2A76 /* AFUScaleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AFUScaleApp.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				842BE90BEBDD37D916DAF62C /* ContentView.swift */,
 				E2E34D3AFE6BE662248D8E9C /* HealthWriter.swift */,
 				1CFEC3318FB92AE48C018B9F /* Info.plist */,
+				9178ECA229D648D90CB3E399 /* MeasurementLog.swift */,
 				64A0C44EF1AB09AEB55E6EBE /* ScaleController.swift */,
 				1B1FC11077ACEB2FF03273C3 /* ScalePacketParser.swift */,
 			);
@@ -137,11 +140,11 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					30357C34ECD646EB927E6F7D = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = WMPPK2G79N;
 						SystemCapabilities = "[\"com.apple.HealthKit\": [\"enabled\": 1]]";
 					};
 					B62CD64F30012367ED7A629A = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = WMPPK2G79N;
 					};
 				};
 			};
@@ -185,6 +188,7 @@
 				A49BA3462F76D391F3D1BF05 /* BodyMetrics.swift in Sources */,
 				19BA62C47AD17120E28EB224 /* ContentView.swift in Sources */,
 				37583E910467DE32177E2AF5 /* HealthWriter.swift in Sources */,
+				713ED1956B07E5EBE9FFB5DF /* MeasurementLog.swift in Sources */,
 				70B2C206EA9A95AB5F1DDD27 /* ScaleController.swift in Sources */,
 				ACF9830501DB7642AB8BCA3B /* ScalePacketParser.swift in Sources */,
 			);
@@ -221,7 +225,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fatpandac.AFUScale;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wayichao.AFUScale;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -262,7 +266,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WMPPK2G79N;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -326,7 +330,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WMPPK2G79N;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -359,7 +363,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fatpandac.AFUScale;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wayichao.AFUScale;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

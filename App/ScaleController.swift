@@ -1,5 +1,6 @@
 import CoreBluetooth
 import Foundation
+import UIKit
 
 @MainActor
 final class ScaleController: NSObject, ObservableObject {
@@ -9,102 +10,22 @@ final class ScaleController: NSObject, ObservableObject {
     @Published var lastSavedText = "尚未写入"
     @Published var needsHealthAuthorization = false
     @Published var records: [SavedRecord] = []
-    /// 改走快捷指令写入：用户主动选择，或 Health 不可写时自动落到这里。
-    @Published var usesShortcut = UserDefaults.standard.bool(forKey: "AFUScale.usesShortcut") {
-        didSet { UserDefaults.standard.set(usesShortcut, forKey: "AFUScale.usesShortcut") }
+    /// 最近一次发现秤时的广播内容，用来判断能否后台连接；持久保存，事后也能查看。
+    @Published var advertisementReport = UserDefaults.standard.string(forKey: "AFUScale.advertisementReport") ?? "" {
+        didSet { UserDefaults.standard.set(advertisementReport, forKey: "AFUScale.advertisementReport") }
     }
-    /// 签名不含 HealthKit entitlement（免费证书侧载）：授权必然报错，锁死在快捷指令，不允许切回。
-    @Published var healthUnavailable = UserDefaults.standard.bool(forKey: "AFUScale.healthUnavailable") {
-        didSet { UserDefaults.standard.set(healthUnavailable, forKey: "AFUScale.healthUnavailable") }
-    }
-    /// 已交给快捷指令、等回跳确认的那一条。
-    @Published private var pendingRecord: LocalRecord?
-
-    enum WriteTarget: Hashable { case health, shortcut }
-
-    /// 给切换控件用：切到 Health 要先过授权校验，没过就维持快捷指令（控件自动回弹）。
-    var writeTarget: WriteTarget {
-        get { usesShortcut ? .shortcut : .health }
-        set {
-            switch newValue {
-            case .shortcut: useShortcut()
-            case .health: requestHealthAuthorization()
-            }
-        }
+    /// 最近的蓝牙事件（带前后台标记），用来排查后台漏记卡在哪一步；持久保存。
+    @Published var eventLog = UserDefaults.standard.stringArray(forKey: "AFUScale.eventLog") ?? [] {
+        didSet { UserDefaults.standard.set(eventLog, forKey: "AFUScale.eventLog") }
     }
 
-    // ponytail: 快捷指令名写死，用户按这个名字建捷径即可；要改名再加设置项。
-    nonisolated static let shortcutName = "AFUScale 写入健康"
-    /// 快捷指令跑完通过 x-callback-url 跳回本 App 用的 scheme（同步登记在 Info.plist）。
-    nonisolated static let callbackScheme = "afuscale"
-
-    /// 交给「快捷指令」的文本输入为 JSON，捷径里用「从输入获取词典」取值。
-    /// fat 是百分数本身（18.70 即 18.70%），快捷指令里直接填入，不要再乘除 100；
-    /// 秤没测到阻抗时整个 fat 键不传（空文本在 Shortcuts 里算「有值」，会被当成数字去转而报错），
-    /// 捷径里用「如果 词典值 fat 有任何值」包住体脂率那一步。
-    nonisolated static func shortcutURL(name: String = shortcutName, weight: Double, bmi: Double, fat: Double?) -> URL? {
-        var fields = [String(format: "\"weight\":%.2f", weight), String(format: "\"bmi\":%.2f", bmi)]
-        if let fat {
-            fields.append(String(format: "\"fat\":%.2f", fat))
-        }
-        var components = URLComponents(string: "shortcuts://x-callback-url/run-shortcut")
-        components?.queryItems = [
-            URLQueryItem(name: "name", value: name),
-            URLQueryItem(name: "input", value: "text"),
-            URLQueryItem(name: "text", value: "{" + fields.joined(separator: ",") + "}"),
-            URLQueryItem(name: "x-success", value: "\(callbackScheme)://saved"),
-            URLQueryItem(name: "x-error", value: "\(callbackScheme)://failed"),
-            URLQueryItem(name: "x-cancel", value: "\(callbackScheme)://cancelled")
-        ]
-        return components?.url
+    private func logEvent(_ text: String) {
+        let bg = UIApplication.shared.applicationState == .background ? "后台" : "前台"
+        eventLog = Array(([Date().formatted(date: .numeric, time: .standard) + " [\(bg)] " + text] + eventLog).prefix(30))
     }
 
-    /// 处理快捷指令跑完后回跳的 x-callback-url。
-    func handleCallback(_ url: URL) {
-        guard url.scheme == Self.callbackScheme else { return }
-        switch url.host {
-        case "saved":
-            // 快捷指令写 Health 的结果读不回来，回跳即视为成功，本地存一份用于展示。
-            if let pendingRecord {
-                localRecords.append(pendingRecord)
-                lastSavedText = Self.summary("已写入", pendingRecord.weightKg, pendingRecord.bmi, pendingRecord.bodyFatPercent)
-                self.pendingRecord = nil
-                loadRecords()
-            }
-            status = "快捷指令写入完成"
-        case "cancelled":
-            status = "快捷指令已取消"
-        default:
-            let message = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first { $0.name == "errorMessage" }?.value
-            status = "快捷指令写入失败：\(message ?? "未知错误")"
-        }
-    }
-
-    /// 待写入那条对应的快捷指令链接；没测过则为 nil。
-    var shortcutURL: URL? {
-        guard let pendingRecord else { return nil }
-        return Self.shortcutURL(weight: pendingRecord.weightKg, bmi: pendingRecord.bmi, fat: pendingRecord.bodyFatPercent)
-    }
-
-    /// 快捷指令写入的记录 Health 里读不到，存在本地。
-    private struct LocalRecord: Codable {
-        let date: Date
-        let weightKg: Double
-        let bmi: Double
-        let bodyFatPercent: Double?
-    }
-
-    /// 体脂率可能因缺阻抗而缺失，统一在这里拼文案。
-    nonisolated static func summary(_ prefix: String, _ weight: Double, _ bmi: Double, _ fat: Double?) -> String {
-        prefix + String(format: "：%.2f kg / BMI %.1f / 体脂 ", weight, bmi)
-            + (fat.map { String(format: "%.1f%%", $0) } ?? "—")
-    }
-
-    private static let localRecordsKey = "AFUScale.shortcutRecords"
-    private var localRecords: [LocalRecord] = [] {
-        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(localRecords), forKey: Self.localRecordsKey) }
-    }
+    /// 连上过的秤，下次直接挂待连接，不再依赖后台扫描。
+    private static let knownScaleKey = "AFUScale.knownScaleID"
 
     private let health = HealthWriter()
     private var central: CBCentralManager!
@@ -115,19 +36,11 @@ final class ScaleController: NSObject, ObservableObject {
     private let ffb0 = CBUUID(string: "0000FFB0-0000-1000-8000-00805F9B34FB")
     private let ffb2 = CBUUID(string: "0000FFB2-0000-1000-8000-00805F9B34FB")
 
-    // 身高/年龄在页面配置，持久化到 UserDefaults；性别/校正值仍写死。
-    @Published var heightCm: Double { didSet { UserDefaults.standard.set(heightCm, forKey: "AFUScale.heightCm") } }
-    @Published var age: Int { didSet { UserDefaults.standard.set(age, forKey: "AFUScale.age") } }
-    private let sex: Sex = .male
-    private let calibration = 1.5
+    let heightCm = 177.0
 
     override init() {
-        let d = UserDefaults.standard
-        heightCm = d.object(forKey: "AFUScale.heightCm") as? Double ?? 170.0
-        age = d.object(forKey: "AFUScale.age") as? Int ?? 25
         super.init()
-        localRecords = d.data(forKey: Self.localRecordsKey)
-            .flatMap { try? JSONDecoder().decode([LocalRecord].self, from: $0) } ?? []
+        observeAppState()
         needsHealthAuthorization = !health.isWriteAuthorized
         loadRecords()
         central = CBCentralManager(
@@ -137,24 +50,7 @@ final class ScaleController: NSObject, ObservableObject {
         )
     }
 
-    /// 改用快捷指令写入。
-    func useShortcut() {
-        usesShortcut = true
-        if pendingRecord == nil, let latest {
-            pendingRecord = record(latest)
-        }
-        status = "使用快捷指令写入"
-    }
-
-    /// 锁定是持久的，换成带 HealthKit 权限的签名后靠这个解锁重试。
-    func retryHealth() {
-        healthUnavailable = false
-        requestHealthAuthorization()
-    }
-
-    /// 切回 Apple 健康：只有拿到写入权限才真的切，否则维持快捷指令。
     func requestHealthAuthorization() {
-        guard !healthUnavailable else { return }
         if health.isWriteAuthorized {
             healthAuthorized()
             return
@@ -166,20 +62,17 @@ final class ScaleController: NSObject, ObservableObject {
                     healthAuthorized()
                 } else {
                     needsHealthAuthorization = true
-                    status = usesShortcut ? "未获得健康写入权限，继续用快捷指令" : "Health 未授权写入"
+                    status = "Health 未授权写入"
                 }
             } catch {
-                // entitlement 被剥掉时必然走这里，不再拿授权错误刷状态栏。
-                healthUnavailable = true
-                useShortcut()
+                needsHealthAuthorization = true
+                status = "Health 授权失败：\(error.localizedDescription)"
             }
         }
     }
 
     private func healthAuthorized() {
         needsHealthAuthorization = false
-        healthUnavailable = false
-        usesShortcut = false
         status = "Health 已授权，等待秤"
         loadRecords()
         startScanningIfReady()
@@ -187,20 +80,46 @@ final class ScaleController: NSObject, ObservableObject {
 
     func loadRecords() {
         Task {
-            let fromHealth = (try? await health.fetchRecords()) ?? []
-            let fromShortcut = localRecords.map {
-                SavedRecord(date: $0.date, weightKg: $0.weightKg, bmi: $0.bmi, bodyFatPercent: $0.bodyFatPercent)
-            }
-            records = (fromHealth + fromShortcut).sorted { $0.date > $1.date }
+            records = Array(((try? await health.fetchRecords()) ?? []).prefix(5))
         }
     }
 
     private func startScanningIfReady() {
         guard central.state == .poweredOn else { return }
         status = "等待秤"
-        // 前台调试用 nil 扫描所有设备，避免 iOS 因广告包服务字段差异漏掉设备。
-        // 连接时再按名称/FFB0 过滤。后台唤醒稳定后可改回 [ffb0]。
-        central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+        armPendingConnection()
+        central.stopScan()
+        // 前台扫全部设备，靠名称/FFB0 过滤，不依赖广播里带服务 UUID。
+        // iOS 后台不接受 nil 扫描，只能按 FFB0 过滤；秤广播里不带 FFB0 时后台就发现不了它。
+        if UIApplication.shared.applicationState == .background {
+            central.scanForPeripherals(withServices: [ffb0])
+        } else {
+            central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+        }
+    }
+
+    /// 秤只在被踩时短暂广播，后台扫描占空比低容易错过；对已知的秤挂一个不超时的
+    /// connect，由系统蓝牙持续等它出现就直接连上。扫描仍保留，兜底首次配对和标识变化。
+    private func armPendingConnection() {
+        guard peripheral == nil,
+              let raw = UserDefaults.standard.string(forKey: Self.knownScaleKey),
+              let id = UUID(uuidString: raw),
+              let known = central.retrievePeripherals(withIdentifiers: [id]).first else { return }
+        peripheral = known
+        known.delegate = self
+        central.connect(known, options: nil)
+    }
+
+    /// 前后台切换时按对应方式重新扫描；正在连着秤就不打断。
+    private func observeAppState() {
+        for name in [UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.peripheral?.state != .connected else { return }
+                    self.startScanningIfReady()
+                }
+            }
+        }
     }
 
     private func handle(_ measurement: ScaleMeasurement, rawHex: String) {
@@ -213,6 +132,7 @@ final class ScaleController: NSObject, ObservableObject {
             return
         }
         print("[AFUScale][save] final result packet")
+        logEvent(String(format: "收到最终结果 %.2f kg", measurement.weightKg))
         save(measurement)
     }
 
@@ -223,46 +143,29 @@ final class ScaleController: NSObject, ObservableObject {
         }
         lastSavedAt = Date()
 
-        let (weight, bmi, fat) = metrics(measurement)
-        guard !usesShortcut else {
-            pendingRecord = record(measurement)
-            lastSavedText = Self.summary("待写入", weight, bmi, fat)
-            status = "等待通过快捷指令写入"
-            disconnectFromScale()
-            return
-        }
+        let weight = (measurement.weightKg * 100).rounded() / 100
+        let bmi = BodyMetrics.bmi(weightKg: weight, heightCm: heightCm)
+        MeasurementLog.append(
+            measurement,
+            weightKg: weight,
+            rawHex: latestRawHex,
+            appState: UIApplication.shared.applicationState == .background ? "background" : "foreground"
+        )
         Task {
             do {
-                try await health.save(weightKg: weight, bmi: bmi, bodyFatPercent: fat)
+                // 体脂率只能用 BMI 和年龄估算，没有新信息，不写入，免得和真实测量混在一起。
+                try await health.save(weightKg: weight, bmi: bmi, bodyFatPercent: nil)
                 loadRecords()
-                lastSavedText = Self.summary("已写入", weight, bmi, fat)
+                lastSavedText = String(format: "已写入：%.2f kg / BMI %.1f", weight, bmi)
                 status = "写入完成，断开连接"
+                logEvent(String(format: "已写入健康 %.2f kg", weight))
                 disconnectFromScale()
             } catch {
-                pendingRecord = record(measurement)
-                usesShortcut = true
-                lastSavedText = Self.summary("待写入", weight, bmi, fat)
-                status = "Health 写入失败，改用快捷指令"
+                status = "Health 写入失败：\(error.localizedDescription)"
+                logEvent("写入健康失败")
                 disconnectFromScale()
             }
         }
-    }
-
-    private func record(_ measurement: ScaleMeasurement, date: Date = Date()) -> LocalRecord {
-        let m = metrics(measurement)
-        return LocalRecord(date: date, weightKg: m.weight, bmi: m.bmi, bodyFatPercent: m.fat)
-    }
-
-    /// 没量到阻抗就不给体脂率，宁可缺失也不写一个只靠身高体重猜出来的值。
-    private func metrics(_ measurement: ScaleMeasurement) -> (weight: Double, bmi: Double, fat: Double?) {
-        let weight = (measurement.weightKg * 100).rounded() / 100
-        return (
-            weight,
-            BodyMetrics.bmi(weightKg: weight, heightCm: heightCm),
-            measurement.impedance == nil
-                ? nil
-                : BodyMetrics.bodyFatPercent(weightKg: weight, heightCm: heightCm, age: age, sex: sex, calibration: calibration)
-        )
     }
 
     private func disconnectFromScale() {
@@ -288,6 +191,11 @@ extension ScaleController: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
         Task { @MainActor in
             self.status = "系统恢复后台蓝牙状态"
+            self.logEvent("系统唤醒恢复")
+            if let restored = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral])?.first {
+                self.peripheral = restored
+                restored.delegate = self
+            }
             self.startScanningIfReady()
         }
     }
@@ -302,7 +210,16 @@ extension ScaleController: CBCentralManagerDelegate {
             let isTargetLocalName = localName == self.targetName
             let isClone = nameForDisplay.contains("Clone")
             guard (isTargetLocalName || hasFFB0), !isClone else { return }
+            // 已经对这台秤挂着待连接，交给它，不重复发起。
+            if self.peripheral?.identifier == peripheral.identifier { return }
+            self.logEvent("扫描发现秤")
             self.status = "发现 AFU-WL-TZ-A1，连接中"
+            self.advertisementReport = [
+                Date().formatted(date: .abbreviated, time: .standard),
+                "名称：\(nameForDisplay)",
+                "广播服务：" + (serviceUUIDs.isEmpty ? "无" : serviceUUIDs.map(\.uuidString).joined(separator: ", ")),
+                hasFFB0 ? "含 FFB0：是，可以后台自动连接" : "含 FFB0：否，后台发现不了秤，需开着 App 称重"
+            ].joined(separator: "\n")
             self.peripheral = peripheral
             peripheral.delegate = self
             central.stopScan()
@@ -313,12 +230,23 @@ extension ScaleController: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
             self.status = "已连接，发现服务"
+            self.logEvent("已连接")
+            UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: Self.knownScaleKey)
             peripheral.discoverServices([self.ffb0])
+        }
+    }
+
+    nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        Task { @MainActor in
+            self.logEvent("连接失败：\(error?.localizedDescription ?? "未知")")
+            self.peripheral = nil
+            self.startScanningIfReady()
         }
     }
 
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
+            self.logEvent("已断开")
             self.peripheral = nil
             self.status = "已断开，等待秤"
             self.startScanningIfReady()

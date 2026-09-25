@@ -40,3 +40,17 @@ private extension Data {
         self.init(hex.split(separator: " ").map { UInt8($0, radix: 16)! })
     }
 }
+
+final class MeasurementLogTests: XCTestCase {
+    func testAppendsImpedanceAndRawHex() throws {
+        try? FileManager.default.removeItem(at: MeasurementLog.url)
+        let m = ScaleMeasurement(weightKg: 69.6, isStable: true, isFinal: true, impedance: Impedance(a: 482, b: 432))
+        MeasurementLog.append(m, weightKg: 69.6, rawHex: "ac 29 02", appState: "foreground", date: Date(timeIntervalSince1970: 0))
+        MeasurementLog.append(ScaleMeasurement(weightKg: 5.1, isStable: true, isFinal: true, impedance: nil),
+                              weightKg: 5.1, rawHex: "ac", appState: "background", date: Date(timeIntervalSince1970: 60))
+        let lines = try String(contentsOf: MeasurementLog.url, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 3)
+        XCTAssertEqual(lines[1], "1970-01-01T00:00:00Z,69.60,482,432,foreground,ac 29 02")
+        XCTAssertEqual(lines[2], "1970-01-01T00:01:00Z,5.10,,,background,ac")
+    }
+}

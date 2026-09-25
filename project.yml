@@ -6,7 +6,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.9
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: WMPPK2G79N
 targets:
   AFUScale:
     type: application
@@ -15,7 +15,7 @@ targets:
       - App
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fatpandac.AFUScale
+        PRODUCT_BUNDLE_IDENTIFIER: com.wayichao.AFUScale
         INFOPLIST_FILE: App/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     attributes:

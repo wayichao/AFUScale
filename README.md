@@ -1,66 +1,52 @@
 # AFUScale
 
-AFUScale 是一款适用于 **AFU-WL-TZ-A1** 体脂秤的 iOS 应用。它通过蓝牙读取称重数据，计算 BMI 与体脂率，并将结果保存到 Apple 健康。
+AFUScale 是一款适用于 **AFU-WL-TZ-A1** 体脂秤的 iOS 应用。它通过蓝牙读取称重数据，将体重和 BMI 保存到 Apple 健康，并把阻抗与原始数据包记录到本地文件。
 
 ## 主要功能
 
-- 自动发现并连接 AFU-WL-TZ-A1 体脂秤
+- 自动发现并连接 AFU-WL-TZ-A1 体脂秤；连接过一次后对该秤保持待连接，App 在后台时站上秤即可自动记录
 - 显示体重、测量状态与阻抗数据
-- 根据身高和年龄计算 BMI、估算体脂率
-- 将体重、BMI 和体脂率写入 Apple 健康
-- 无法直接写入 Apple 健康时（如免费 Apple ID 侧载），可改由快捷指令写入
-- 查看本应用写入的历史记录
-- 支持蓝牙后台唤醒
+- 将体重和 BMI 写入 Apple 健康（身高固定为 177 cm，见 `ScaleController.heightCm`）
+- 每次最终结果追加到 `Documents/measurements.csv`（时间、体重、阻抗 a/b、前后台、原始包 hex），可在「文件」App → 我的 iPhone → AFUScale 中查看
+- 查看最近 5 条写入记录
+- 诊断区显示秤的广播内容和最近 30 条蓝牙事件，用于排查后台漏记
 
 ## 系统要求
 
-- iPhone 或 iPad，系统版本为 iOS 17 或更高
+- iPhone，iOS 17 或更高
 - AFU-WL-TZ-A1 体脂秤
-- 已开启蓝牙
-- 用于侧载应用的 Apple ID
-- macOS 或 Windows 电脑，以及 [Sideloadly](https://sideloadly.io/)
+- 装有 Xcode 的 Mac，以及一个 Apple ID（免费即可）
 
-## 使用 Sideloadly 安装
+## 安装
 
-1. 从本项目的 **Releases** 页面下载最新 IPA 文件。
-2. 从 [Sideloadly 官网](https://sideloadly.io/)下载并安装 Sideloadly。
-3. 使用数据线将 iPhone 或 iPad 连接到电脑，并在设备上选择“信任此电脑”。
-4. 打开 Sideloadly，将 IPA 文件拖入窗口。
-5. 选择已连接的设备，按 Sideloadly 提示填写用于签名的 Apple ID，然后点击 **Start**。
-6. 安装完成后，在设备上打开：
-   - **设置 → 隐私与安全性 → 开发者模式**，按提示开启并重启设备；
-   - **设置 → 通用 → VPN 与设备管理**，找到对应的开发者 App 并选择信任。
-7. 打开 AFUScale，允许蓝牙访问和 Apple 健康写入权限。
+用 Xcode 的免费 Personal Team 签名会保留 HealthKit 权限；Sideloadly 等重签工具会剥掉它，装上后无法写入 Apple 健康。
 
-> 使用免费 Apple ID 签名的应用通常只有 7 天有效期，到期后需要通过 Sideloadly 重新签名安装。付费 Apple Developer 账号的签名有效期通常为一年。
+1. 把 `project.yml` 里的 `DEVELOPMENT_TEAM` 和 `PRODUCT_BUNDLE_IDENTIFIER` 改成自己的（Xcode → Settings → Accounts 登录 Apple ID 后可在 Signing & Capabilities 查看 Team ID），然后运行 `xcodegen generate`。
+2. iPhone 连接 Mac 并信任此电脑，构建并安装：
+   ```
+   xcodebuild -project AFUScale.xcodeproj -scheme AFUScale -configuration Debug \
+     -destination 'generic/platform=iOS' -derivedDataPath build -allowProvisioningUpdates \
+     -allowProvisioningDeviceRegistration build
+   ideviceinstaller install build/Build/Products/Debug-iphoneos/AFUScale.app   # brew install ideviceinstaller
+   ```
+   也可以直接在 Xcode 中选中设备后 Run。
+3. 在 iPhone 上开启 **设置 → 隐私与安全性 → 开发者模式**，并在 **设置 → 通用 → VPN 与设备管理** 中信任开发者。
+4. 打开 AFUScale，允许蓝牙和 Apple 健康权限。
 
-## 使用快捷指令辅助写入（免费 Apple ID 必读）
-
-免费 Apple ID 无法签发包含 HealthKit 权限的描述文件，Sideloadly 重签时会剥掉 `com.apple.developer.healthkit`，应用因此**无法直接写入 Apple 健康**（这是系统限制，不是应用的 Bug）。此时应用会自动锁定到“快捷指令”写入方式，由快捷指令代为写入。
-
-1. 在 iPhone 上打开并添加此快捷指令：<https://www.icloud.com/shortcuts/ed61e82b3f604c68a33d512e7748db7d>
-2. 确认快捷指令名称为 **AFUScale 写入健康**。应用按此名称调用，改名会导致调用失败。
-3. 在**设置 → 健康 → 数据访问与设备 → 快捷指令**中，允许写入体重、体质指数和体脂率。
-4. 在应用的“写入方式”中选择“快捷指令”（没有 HealthKit 权限时会自动锁定在这一项）。
-5. 称重完成后点击“通过快捷指令写入”，应用会跳转到快捷指令，写入完成后自动跳回，记录出现在“写入记录”中。
-
-> 若以后换成带 HealthKit 权限的签名（如付费开发者账号），点击“写入方式”下方的“重新检测”即可解锁，切回 Apple 健康直接写入。
+> 免费 Apple ID 签名 7 天后失效，需重新构建安装；已写入 Apple 健康的数据和 `measurements.csv` 不受影响。
 
 ## 使用方法
 
-1. 首次打开应用后，在“个人参数”中填写身高和年龄。
-2. 确认蓝牙权限已允许，并在“写入方式”中确认使用 Apple 健康还是快捷指令。
-3. 唤醒体脂秤并开始称重，应用会自动连接并等待最终测量结果。
-4. 测量完成后，体重、BMI 和体脂率会写入 Apple 健康；快捷指令方式需手动点击“通过快捷指令写入”。
-5. 在“写入记录”中可查看历史结果。
+1. 首次打开 App 后站上秤，让它连上并记住这台秤。
+2. 之后 App 在后台（未被手动划掉）时站上秤，会自动连接、写入 Apple 健康并记录阻抗。
+3. 漏记时查看诊断区「蓝牙事件」：没有任何事件说明未赶上秤的广播窗口；有「已连接」无「收到最终结果」说明测量未完成。
 
 ## 隐私
 
-AFUScale 不需要注册账号，也不会将健康数据上传到服务器。个人参数保存在设备本地，测量结果由 Apple 健康管理。
+AFUScale 不需要注册账号，不包含任何网络请求代码，数据不离开设备。测量结果由 Apple 健康管理，阻抗记录保存在 App 的 Documents 目录。
 
 ## 注意事项
 
-- 体脂率并非体脂秤直接提供的结果，而是应用根据体重、身高、年龄、性别估算，仅供日常参考，不可用于医疗诊断。
-- 称重时未测到阻抗（未踩实电极、隔着袜子等）时不会写入体脂率，只写入体重和 BMI，记录中的体脂显示为“—”。
-- iOS 不允许应用无限期在后台运行。后台连接依赖系统的 CoreBluetooth 唤醒机制，实际表现可能受系统状态影响。
-- 如果无法写入 Apple 健康，请先检查健康权限；使用免费 Apple ID 侧载时请改用上方的快捷指令方案。
+- 秤只提供体重和阻抗，BMI 由体重和身高计算。App 不估算体脂率：仅凭 BMI 和年龄套公式得出的体脂没有新信息，写入 Health 会与真实测量混在一起。
+- 称重时未测到阻抗（未踩实电极、隔着袜子等），`measurements.csv` 中阻抗列为空。
+- 手动划掉 App 后 iOS 不会在后台唤醒它，需重新打开一次。
