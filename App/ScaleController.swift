@@ -21,7 +21,47 @@ final class ScaleController: NSObject, ObservableObject {
 
     private func logEvent(_ text: String) {
         let bg = UIApplication.shared.applicationState == .background ? "后台" : "前台"
-        eventLog = Array(([Date().formatted(date: .numeric, time: .standard) + " [\(bg)] " + text] + eventLog).prefix(30))
+        eventLog = Array(([Date().formatted(date: .numeric, time: .standard) + " [\(bg)] " + text] + eventLog).prefix(200))
+    }
+
+    /// GitHub 同步状态，显示在诊断区；成功时间持久保存，用来限制每天自动同步一次。
+    @Published var syncStatus = ""
+    private static let lastSyncKey = "AFUScale.lastGitHubSync"
+
+    /// App 回到前台时调用：一天内同步过就跳过。
+    func syncIfDue() {
+        GitHubSync.importDroppedToken()
+        if let last = UserDefaults.standard.object(forKey: Self.lastSyncKey) as? Date,
+           Date().timeIntervalSince(last) < 24 * 3600 {
+            syncStatus = "上次同步 " + last.formatted(date: .abbreviated, time: .shortened)
+            return
+        }
+        syncNow()
+    }
+
+    /// measurements.csv 和蓝牙事件日志一起推上去，排查后台漏记也不用插手机。
+    func syncNow() {
+        GitHubSync.importDroppedToken()
+        guard GitHubSync.hasToken else {
+            syncStatus = "未配置 GitHub token"
+            return
+        }
+        syncStatus = "同步中…"
+        let log = (advertisementReport + "\n\n" + eventLog.joined(separator: "\n")).data(using: .utf8) ?? Data()
+        let csv = try? Data(contentsOf: MeasurementLog.url)
+        Task {
+            do {
+                if let csv { try await GitHubSync.upload(path: "measurements.csv", data: csv) }
+                try await GitHubSync.upload(path: "app_log.txt", data: log)
+                let now = Date()
+                UserDefaults.standard.set(now, forKey: Self.lastSyncKey)
+                syncStatus = "上次同步 " + now.formatted(date: .abbreviated, time: .shortened)
+                logEvent("已同步到 GitHub")
+            } catch {
+                syncStatus = "同步失败：\(error.localizedDescription)"
+                logEvent("同步失败：\(error.localizedDescription)")
+            }
+        }
     }
 
     /// 连上过的秤，下次直接挂待连接，不再依赖后台扫描。
@@ -31,6 +71,8 @@ final class ScaleController: NSObject, ObservableObject {
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var lastSavedAt: Date?
+    /// 写入后秤还亮着会被反复连上、重发结果；这段时间内的连接事件不记日志，免得刷掉有用的记录。
+    private var inSaveCooldown: Bool { lastSavedAt.map { Date().timeIntervalSince($0) < 90 } ?? false }
 
     private let targetName = "AFU-WL-TZ-A1"
     private let ffb0 = CBUUID(string: "0000FFB0-0000-1000-8000-00805F9B34FB")
@@ -112,6 +154,9 @@ final class ScaleController: NSObject, ObservableObject {
 
     /// 前后台切换时按对应方式重新扫描；正在连着秤就不打断。
     private func observeAppState() {
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncIfDue() }
+        }
         for name in [UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -132,12 +177,12 @@ final class ScaleController: NSObject, ObservableObject {
             return
         }
         print("[AFUScale][save] final result packet")
-        logEvent(String(format: "收到最终结果 %.2f kg", measurement.weightKg))
+        if !inSaveCooldown { logEvent(String(format: "收到最终结果 %.2f kg", measurement.weightKg)) }
         save(measurement)
     }
 
     private func save(_ measurement: ScaleMeasurement) {
-        if let lastSavedAt, Date().timeIntervalSince(lastSavedAt) < 90 {
+        if inSaveCooldown {
             disconnectFromScale()
             return
         }
@@ -230,7 +275,7 @@ extension ScaleController: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
             self.status = "已连接，发现服务"
-            self.logEvent("已连接")
+            if !self.inSaveCooldown { self.logEvent("已连接") }
             UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: Self.knownScaleKey)
             peripheral.discoverServices([self.ffb0])
         }
@@ -246,7 +291,7 @@ extension ScaleController: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
-            self.logEvent("已断开")
+            if !self.inSaveCooldown { self.logEvent("已断开") }
             self.peripheral = nil
             self.status = "已断开，等待秤"
             self.startScanningIfReady()

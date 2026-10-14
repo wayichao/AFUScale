@@ -6,9 +6,12 @@ enum MeasurementLog {
     static let url = URL.documentsDirectory.appending(path: "measurements.csv")
     private static let header = "time,weight_kg,impedance_a,impedance_b,app_state,raw_hex\n"
 
-    static func append(_ m: ScaleMeasurement, weightKg: Double, rawHex: String, appState: String, date: Date = Date()) {
+    static func append(_ m: ScaleMeasurement, weightKg: Double, rawHex: String, appState: String,
+                       date: Date = Date(), timeZone: TimeZone = .current) {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = timeZone
         let fields = [
-            date.ISO8601Format(.iso8601.timeZone(separator: .omitted)),
+            formatter.string(from: date),
             String(format: "%.2f", weightKg),
             m.impedance.map { String($0.a) } ?? "",
             m.impedance.map { String($0.b) } ?? "",

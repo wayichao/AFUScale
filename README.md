@@ -9,7 +9,8 @@ AFUScale 是一款适用于 **AFU-WL-TZ-A1** 体脂秤的 iOS 应用。它通过
 - 将体重和 BMI 写入 Apple 健康（身高固定为 177 cm，见 `ScaleController.heightCm`）
 - 每次最终结果追加到 `Documents/measurements.csv`（时间、体重、阻抗 a/b、前后台、原始包 hex），可在「文件」App → 我的 iPhone → AFUScale 中查看
 - 查看最近 5 条写入记录
-- 诊断区显示秤的广播内容和最近 30 条蓝牙事件，用于排查后台漏记
+- 诊断区显示秤的广播内容和最近 200 条蓝牙事件，用于排查后台漏记
+- 可选：把 `measurements.csv` 和蓝牙事件日志同步到一个私有 GitHub 仓库（`GitHubSync.repo`），App 回到前台时每天自动一次，也可手动「立即同步」
 
 ## 系统要求
 
@@ -43,7 +44,16 @@ AFUScale 是一款适用于 **AFU-WL-TZ-A1** 体脂秤的 iOS 应用。它通过
 
 ## 隐私
 
-AFUScale 不需要注册账号，不包含任何网络请求代码，数据不离开设备。测量结果由 Apple 健康管理，阻抗记录保存在 App 的 Documents 目录。
+AFUScale 不需要注册账号。测量结果由 Apple 健康管理，阻抗记录保存在 App 的 Documents 目录。唯一的网络请求是可选的 GitHub 同步：只有配置了 token 才会联网，且只访问 `GitHubSync.repo` 这一个仓库。
+
+### 配置 GitHub 同步
+
+1. 建一个**私有**仓库，把 `App/GitHubSync.swift` 里的 `repo` 改成它。
+2. 在 GitHub 网页上创建 fine-grained token：只授权这个仓库，权限只开 Contents: Read and write。
+3. 复制 token 后，在 Mac 上把它放进 App 的 Documents（App 下次启动时会导入钥匙串并删除这个文件）：
+   ```
+   pbpaste | tr -d '\n' > /tmp/gt && pymobiledevice3 apps push <bundle id> /tmp/gt /Documents/github_token.txt; rm -f /tmp/gt
+   ```
 
 ## 注意事项
 

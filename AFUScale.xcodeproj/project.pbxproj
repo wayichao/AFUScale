@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		19BA62C47AD17120E28EB224 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842BE90BEBDD37D916DAF62C /* ContentView.swift */; };
+		2E6F078D5C454E8EA830BCBB /* GitHubSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0410DD93FB5FDF0B95FD3AC9 /* GitHubSync.swift */; };
 		37583E910467DE32177E2AF5 /* HealthWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E34D3AFE6BE662248D8E9C /* HealthWriter.swift */; };
 		5EDF364EC77E4CCBA7103C62 /* ScalePacketParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707E1880157881C7C581B400 /* ScalePacketParserTests.swift */; };
 		70B2C206EA9A95AB5F1DDD27 /* ScaleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A0C44EF1AB09AEB55E6EBE /* ScaleController.swift */; };
@@ -30,6 +31,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0410DD93FB5FDF0B95FD3AC9 /* GitHubSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubSync.swift; sourceTree = "<group>"; };
 		0A3DD5E9979D6212684DD8C7 /* AFUScale.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AFUScale.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		10B6E4CA7612470A5FC2A688 /* BodyMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyMetrics.swift; sourceTree = "<group>"; };
 		1B1FC11077ACEB2FF03273C3 /* ScalePacketParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScalePacketParser.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				BF9DB245031D79CBE794BF36 /* Assets.xcassets */,
 				10B6E4CA7612470A5FC2A688 /* BodyMetrics.swift */,
 				842BE90BEBDD37D916DAF62C /* ContentView.swift */,
+				0410DD93FB5FDF0B95FD3AC9 /* GitHubSync.swift */,
 				E2E34D3AFE6BE662248D8E9C /* HealthWriter.swift */,
 				1CFEC3318FB92AE48C018B9F /* Info.plist */,
 				9178ECA229D648D90CB3E399 /* MeasurementLog.swift */,
@@ -187,6 +190,7 @@
 				EA4E9B4BAEA8E44607EFA784 /* AFUScaleApp.swift in Sources */,
 				A49BA3462F76D391F3D1BF05 /* BodyMetrics.swift in Sources */,
 				19BA62C47AD17120E28EB224 /* ContentView.swift in Sources */,
+				2E6F078D5C454E8EA830BCBB /* GitHubSync.swift in Sources */,
 				37583E910467DE32177E2AF5 /* HealthWriter.swift in Sources */,
 				713ED1956B07E5EBE9FFB5DF /* MeasurementLog.swift in Sources */,
 				70B2C206EA9A95AB5F1DDD27 /* ScaleController.swift in Sources */,

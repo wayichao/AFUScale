@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var scale: ScaleController
-    @State private var showsRawData = false
 
     private enum Palette {
         static let blue = Color(red: 0, green: 0.4, blue: 0.8)
@@ -21,6 +20,7 @@ struct ContentView: View {
                     measurement
                     profile
                     history
+                    sync
                     diagnostics
                     footer
                 }
@@ -205,6 +205,24 @@ struct ContentView: View {
             .clipShape(Capsule())
     }
 
+    private var sync: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("GitHub 同步")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(scale.syncStatus.isEmpty ? "每天打开 App 时自动同步一次" : scale.syncStatus)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.muted)
+            }
+            Spacer()
+            Button("立即同步") { scale.syncNow() }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Palette.blue)
+        }
+        .padding(24)
+        .background(Palette.parchment)
+    }
+
     @ViewBuilder
     private var diagnostics: some View {
         if !scale.advertisementReport.isEmpty {
@@ -218,7 +236,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !scale.eventLog.isEmpty {
-                    Text("蓝牙事件（最近 30 条）")
+                    Text("蓝牙事件（最近 200 条）")
                         .font(.system(size: 14, weight: .semibold))
                         .padding(.top, 8)
                     Text(scale.eventLog.joined(separator: "\n"))
@@ -232,7 +250,7 @@ struct ContentView: View {
             .background(.white)
         }
         if !scale.latestRawHex.isEmpty {
-            DisclosureGroup("原始测量数据", isExpanded: $showsRawData) {
+            DisclosureGroup("原始测量数据") {
                 Text(scale.latestRawHex)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(Palette.muted)
